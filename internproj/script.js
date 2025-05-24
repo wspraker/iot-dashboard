@@ -3,22 +3,20 @@
 fetch('RawData.csv')
   .then(res => res.text())
   .then(text => {
-    // Parse CSV (skip header)
+    // 1) Parse CSV 
     const lines     = text.trim().split('\n');
     const dataLines = lines.slice(1);
     const timestamps = [];
-    const labels     = [];
     const values     = [];
 
     dataLines.forEach(line => {
       const [ts, lvl] = line.split(';');
-      const d = new Date(ts);
-      timestamps.push(d);
-      labels.push(d.toLocaleDateString());
-      values.push(Number(lvl));
+      const date      = new Date(ts);
+      timestamps.push(date);
+      values.push(+lvl);
     });
 
-    // 1) Basic stats
+    // 2) Basic stats
     const sum   = values.reduce((a, b) => a + b, 0);
     const mean  = sum / values.length;
     const avg   = mean.toFixed(2);
@@ -26,7 +24,7 @@ fetch('RawData.csv')
     const minV  = Math.min(...values);
     const curV  = values[values.length - 1].toFixed(2);
 
-    // 2) Pump cycles & runtime
+    // 3) Pump cycles & runtime
     let cycles    = 0;
     let runtimeMs = 0;
     let pumping   = false;
@@ -53,26 +51,26 @@ fetch('RawData.csv')
     }
     const runtimeHrs = (runtimeMs / 1000 / 3600).toFixed(2);
 
-    // 3) Update stat cards
+    // 4) Update stat cards
     document.getElementById('currentLevel').textContent = `Current Level: ${curV} ft`;
-    document.getElementById('avgLevel').    textContent = `Average Level: ${avg} ft`;
-    document.getElementById('maxLevel').    textContent = `Max Level: ${maxV.toFixed(2)} ft`;
-    document.getElementById('minLevel').    textContent = `Min Level: ${minV.toFixed(2)} ft`;
-    document.getElementById('cycleCount').  textContent = `Pump Cycles: ${cycles}`;
-    document.getElementById('runtime').     textContent = `Pump Runtime: ${runtimeHrs} hrs`;
+    document.getElementById('avgLevel').textContent     = `Average Level: ${avg} ft`;
+    document.getElementById('maxLevel').textContent     = `Max Level: ${maxV.toFixed(2)} ft`;
+    document.getElementById('minLevel').textContent     = `Min Level: ${minV.toFixed(2)} ft`;
+    document.getElementById('cycleCount').textContent   = `Pump Cycles: ${cycles}`;
+    document.getElementById('runtime').textContent      = `Pump Runtime: ${runtimeHrs} hrs`;
 
-    // 4) 7-point moving average (trend)
+    // 5) 7-point moving average (trend)
     const maWindow = 7;
-    const trend = values.map((_, i) => {
+    const trendData = values.map((_, i) => {
       if (i < maWindow - 1) return null;
       const slice = values.slice(i - maWindow + 1, i + 1);
-      return slice.reduce((a, b) => a + b, 0) / maWindow;
-    });
+      const m     = slice.reduce((a, b) => a + b, 0) / maWindow;
+      return { x: timestamps[i], y: m };
+    }).filter(pt => pt !== null);
 
-    // 5) Rolling-window anomaly detection (local ±2σ)
+    // 6) Rolling-window anomaly detection (local ±2σ)
     const anomalyWindow = 24;
-    const pointRadii  = [];
-    const pointColors = [];
+    const anomalies = [];
 
     for (let i = 0; i < values.length; i++) {
       const start = Math.max(0, i - Math.floor(anomalyWindow / 2));
@@ -84,32 +82,31 @@ fetch('RawData.csv')
       );
 
       if (Math.abs(values[i] - localMean) > 2 * localStd) {
-        pointRadii[i]  = 5;
-        pointColors[i] = 'red';
-      } else {
-        pointRadii[i]  = 0;
-        pointColors[i] = 'transparent';
+        anomalies.push({ x: timestamps[i], y: values[i] });
       }
     }
 
-    // 6) Daily pump-cycle counts (bar chart)
+    // 7) Raw data for time-axis
+    const rawData = timestamps.map((t, i) => ({ x: t, y: values[i] }));
+
+    // 8) Daily pump-cycle counts (bar chart)
     const dailyCounts = {};
     cycleStarts.forEach(d => {
       const day = d.toLocaleDateString();
       dailyCounts[day] = (dailyCounts[day] || 0) + 1;
     });
     const barLabels = Object.keys(dailyCounts);
-    const barData   = barLabels.map(d => dailyCounts[d]);
+    const barData   = barLabels.map(day => dailyCounts[day]);
 
-    // 7) Render line + trend + anomalies
-    new Chart(document.getElementById('lineChart'), {
+    // 9) Render the time-series line chart
+    const ctxLine = document.getElementById('lineChart').getContext('2d');
+    new Chart(ctxLine, {
       type: 'line',
       data: {
-        labels,
         datasets: [
           {
             label: 'Water Level',
-            data: values,
+            data: rawData,
             borderColor: '#2563eb',
             borderWidth: 1.5,
             tension: 0.3,
@@ -118,7 +115,7 @@ fetch('RawData.csv')
           },
           {
             label: '7-pt MA',
-            data: trend,
+            data: trendData,
             borderColor: '#4b5563',
             borderDash: [4, 4],
             borderWidth: 1.5,
@@ -129,17 +126,15 @@ fetch('RawData.csv')
           },
           {
             label: 'Anomalies',
-            data: labels.map((l, i) => ({ x: l, y: values[i] })),
+            data: anomalies,
             type: 'scatter',
-            pointRadius: pointRadii,
-            pointBackgroundColor: pointColors,
-            pointBorderColor: pointColors
+            backgroundColor: 'red',
+            pointRadius: 5
           }
         ]
       },
       options: {
         maintainAspectRatio: false,
-        layout: { padding: { left: 0, right: 0, top: 0, bottom: 0 } },
         plugins: {
           legend: {
             position: 'top',
@@ -152,33 +147,43 @@ fetch('RawData.csv')
           tooltip: {
             mode: 'nearest',
             intersect: false,
-            padding: 8,
-            titleMarginBottom: 6,
-            bodyFont: { size: 12 }
+            padding: 8
           }
         },
         scales: {
           x: {
-            display: false,
-            grid: { display: false }
+            type: 'time',
+            time: {
+              tooltipFormat: 'MMM d, yyyy HH:mm',
+              displayFormats: {
+                hour: 'MMM d HH:mm',
+                day: 'MMM d'
+              }
+            },
+            title: {
+              display: true,
+              text: 'Timestamp'
+            },
+            grid: { display: false },
+            ticks: {
+              maxRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: 8
+            }
           },
           y: {
             grid: {
               color: '#e5e7eb',
               borderDash: [2, 2]
-            },
-            ticks: {
-              padding: 4,
-              maxTicksLimit: 6
-            },
-            border: { dash: [2, 2] }
+            }
           }
         }
       }
     });
 
-    // 8) Render bar chart of daily cycles
-    new Chart(document.getElementById('barChart'), {
+    // 10) Render the daily cycles bar chart
+    const ctxBar = document.getElementById('barChart').getContext('2d');
+    new Chart(ctxBar, {
       type: 'bar',
       data: {
         labels: barLabels,
@@ -192,4 +197,10 @@ fetch('RawData.csv')
         responsive: true,
         plugins: { legend: { display: false } },
         scales: {
-          x: { ticks: { autoSkip: true, maxTicksLimit: 10 } },
+          x: { ticks: { autoSkip: true, maxTicksLimit: 8 } },
+          y: { beginAtZero: true }
+        }
+      }
+    });
+  })
+  .catch(err => console.error('Failed to load CSV:', err));
