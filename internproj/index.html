@@ -1,14 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Water Level Dashboard</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css"/>
+
+  
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 </head>
 <body>
   <div class="container">
-    <h1> Water Level Dashboard</h1>
+    <h1>💧 Water Level Dashboard</h1>
+
     <div class="cards">
       <div class="card" id="currentLevel">Current Level: -- ft</div>
       <div class="card" id="avgLevel">Average Level: -- ft</div>
@@ -19,7 +25,7 @@
     </div>
 
     <div class="chart-wrapper">
-      <h3>Water Level & Trend</h3>
+      <h3>Level & Trend</h3>
       <canvas id="lineChart"></canvas>
     </div>
 
