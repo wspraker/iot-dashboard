@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Water Level Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>💧 Water Level Dashboard</h1>
+    <div class="cards">
+      <div class="card" id="currentLevel">Current Level: -- ft</div>
+      <div class="card" id="avgLevel">Average Level: -- ft</div>
+      <div class="card" id="maxLevel">Max Level: -- ft</div>
+      <div class="card" id="minLevel">Min Level: -- ft</div>
+      <div class="card" id="cycleCount">Pump Cycles: --</div>
+      <div class="card" id="runtime">Pump Runtime: -- hrs</div>
+    </div>
+
+    <div class="chart-wrapper">
+      <h3>Water Level & Trend</h3>
+      <canvas id="lineChart"></canvas>
+    </div>
+
+    <div class="chart-wrapper">
+      <h3>Daily Pump Cycles</h3>
+      <canvas id="barChart"></canvas>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
