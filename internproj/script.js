@@ -27,29 +27,29 @@ fetch('RawData.csv')
     const curV  = values[values.length - 1].toFixed(2);
 
     // 2) Pump cycles & runtime
-    let cycles   = 0;
-    let runtimeMs= 0;
-    let pumping  = false;
-    let startTime= null;
+    let cycles    = 0;
+    let runtimeMs = 0;
+    let pumping   = false;
+    let startTime = null;
     const cycleStarts = [];
 
     for (let i = 1; i < values.length; i++) {
-      const delta = values[i] - values[i-1];
-      const tPrev = timestamps[i-1];
+      const delta = values[i] - values[i - 1];
+      const tPrev = timestamps[i - 1];
 
       if (!pumping && delta > 0.5) {
-        pumping = true;
+        pumping   = true;
         startTime = tPrev;
         cycles++;
         cycleStarts.push(tPrev);
       }
       if (pumping && delta <= 0) {
-        pumping = false;
+        pumping   = false;
         runtimeMs += (tPrev - startTime);
       }
     }
     if (pumping && startTime) {
-      runtimeMs += (timestamps[timestamps.length-1] - startTime);
+      runtimeMs += (timestamps[timestamps.length - 1] - startTime);
     }
     const runtimeHrs = (runtimeMs / 1000 / 3600).toFixed(2);
 
@@ -69,29 +69,30 @@ fetch('RawData.csv')
       return slice.reduce((a, b) => a + b, 0) / maWindow;
     });
 
-    // 5) Rolling‐window anomaly detection (local ±2σ)
+    // 5) Rolling-window anomaly detection (local ±2σ)
     const anomalyWindow = 24;
-    const pointRadii = [];
-    const pointColors= [];
+    const pointRadii  = [];
+    const pointColors = [];
 
     for (let i = 0; i < values.length; i++) {
-      const start = Math.max(0, i - Math.floor(anomalyWindow/2));
-      const end   = Math.min(values.length, i + Math.ceil(anomalyWindow/2));
+      const start = Math.max(0, i - Math.floor(anomalyWindow / 2));
+      const end   = Math.min(values.length, i + Math.ceil(anomalyWindow / 2));
       const slice = values.slice(start, end);
-      const localMean = slice.reduce((a, b) => a + b, 0) / slice.length;
+      const localMean = slice.reduce((a, v) => a + v, 0) / slice.length;
       const localStd  = Math.sqrt(
         slice.reduce((a, v) => a + Math.pow(v - localMean, 2), 0) / slice.length
       );
+
       if (Math.abs(values[i] - localMean) > 2 * localStd) {
-        pointRadii[i] = 5;
-        pointColors[i]= 'red';
+        pointRadii[i]  = 5;
+        pointColors[i] = 'red';
       } else {
-        pointRadii[i] = 0;
-        pointColors[i]= 'transparent';
+        pointRadii[i]  = 0;
+        pointColors[i] = 'transparent';
       }
     }
 
-    // 6) Daily pump‐cycle counts for bar chart
+    // 6) Daily pump-cycle counts (bar chart)
     const dailyCounts = {};
     cycleStarts.forEach(d => {
       const day = d.toLocaleDateString();
@@ -101,8 +102,7 @@ fetch('RawData.csv')
     const barData   = barLabels.map(d => dailyCounts[d]);
 
     // 7) Render line + trend + anomalies
-    const ctxLine = document.getElementById('lineChart').getContext('2d');
-    new Chart(ctxLine, {
+    new Chart(document.getElementById('lineChart'), {
       type: 'line',
       data: {
         labels,
@@ -111,31 +111,51 @@ fetch('RawData.csv')
             label: 'Water Level',
             data: values,
             borderColor: '#2563eb',
-            borderWidth: 2,
-            tension: 0.2,
+            borderWidth: 1.5,
+            tension: 0.3,
             fill: false,
-            pointRadius: pointRadii,
-            pointBackgroundColor: pointColors,
-            pointBorderColor: pointColors
+            pointRadius: 0
           },
           {
             label: '7-pt MA',
             data: trend,
             borderColor: '#4b5563',
-            borderDash: [5,5],
-            borderWidth: 2,
-            tension: 0.2,
+            borderDash: [4, 4],
+            borderWidth: 1.5,
+            tension: 0.3,
             fill: false,
             pointRadius: 0,
             spanGaps: true
+          },
+          {
+            label: 'Anomalies',
+            data: labels.map((l, i) => ({ x: l, y: values[i] })),
+            type: 'scatter',
+            pointRadius: pointRadii,
+            pointBackgroundColor: pointColors,
+            pointBorderColor: pointColors
           }
         ]
       },
       options: {
-        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { left: 0, right: 0, top: 0, bottom: 0 } },
         plugins: {
-          legend: { position: 'top' },
-          tooltip: { mode: 'index', intersect: false }
+          legend: {
+            position: 'top',
+            labels: {
+              usePointStyle: true,
+              boxWidth: 10,
+              padding: 12
+            }
+          },
+          tooltip: {
+            mode: 'nearest',
+            intersect: false,
+            padding: 8,
+            titleMarginBottom: 6,
+            bodyFont: { size: 12 }
+          }
         },
         scales: {
           x: {
@@ -143,15 +163,22 @@ fetch('RawData.csv')
             grid: { display: false }
           },
           y: {
-            grid: { color: '#e5e7eb' }
+            grid: {
+              color: '#e5e7eb',
+              borderDash: [2, 2]
+            },
+            ticks: {
+              padding: 4,
+              maxTicksLimit: 6
+            },
+            border: { dash: [2, 2] }
           }
         }
       }
     });
 
-    // 8) Render bar chart for daily cycles
-    const ctxBar = document.getElementById('barChart').getContext('2d');
-    new Chart(ctxBar, {
+    // 8) Render bar chart of daily cycles
+    new Chart(document.getElementById('barChart'), {
       type: 'bar',
       data: {
         labels: barLabels,
@@ -166,9 +193,3 @@ fetch('RawData.csv')
         plugins: { legend: { display: false } },
         scales: {
           x: { ticks: { autoSkip: true, maxTicksLimit: 10 } },
-          y: { beginAtZero: true }
-        }
-      }
-    });
-  })
-  .catch(err => console.error('Error loading CSV:', err));
